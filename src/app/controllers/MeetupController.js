@@ -1,15 +1,35 @@
-import { hourStart } from 'date-fsn';
+import * as Yup from 'yup';
+import { Op } from 'sequelize';
+import {
+  isBefore,
+  startOfDay,
+  endOfDay,
+  parseISO,
+  startOfHour,
+} from 'date-fns';
 import Meetup from '../models/Meetup';
+import User from '../models/User';
+import File from '../models/File';
 
 class MeetupController {
   async index(req, res) {
     const { page = 1 } = req.query;
+    const whereClause = {};
+
+    if (req.query.date) {
+      const searchDate = parseISO(req.query.date);
+
+      whereClause.date = {
+        [Op.between]: [startOfDay(searchDate), endOfDay(searchDate)],
+      };
+    }
+
     const meetups = await Meetup.findAll({
-      where: { user_id: req.userId, date: { [Op.gt]: new Date() } },
+      whereClause,
       order: ['date'],
       attributes: ['id', 'date', 'past'],
-      limit: 20,
-      offset: (page - 1) * 20,
+      limit: 10,
+      offset: (page - 1) * 10,
       include: [
         {
           model: User,
@@ -38,7 +58,7 @@ class MeetupController {
       date: Yup.date().required(),
     });
 
-    if (!(await schema.isValid()))
+    if (!(await schema.isValid(req.body)))
       return res.status(400).json({ message: 'Validation fails.' });
 
     const { date } = req.body;
@@ -76,19 +96,26 @@ class MeetupController {
       date: Yup.date(),
     });
 
-    const meetup = await Meetup.findByPk(req.params.id, {
+    if (!(await schema.isValid(req.body)))
+      return res.status(400).json({ message: 'Validation fails.' });
+
+    const exitMeetup = await Meetup.findByPk(req.params.id, {
       include: [{ model: User, as: 'user', attributes: ['name'] }],
     });
 
-    if (meetup.user_id !== req.userId)
+    if (exitMeetup.user_id !== req.userId)
       return res.status(401).json({
         error: "You don't have permission to edit this meetup.",
       });
 
-    if (isBefore(meetup.date, new Date()))
+    if (exitMeetup.past)
       return res.status(401).json({
         error: 'You can only edit meetups that have not yet happened.',
       });
+
+    if (isBefore(parseISO(req.body.date), new Date())) {
+      return res.status(400).json({ error: 'Meetup date invalid' });
+    }
 
     const meetup = await Meetup.update(req.body);
 
@@ -105,7 +132,7 @@ class MeetupController {
         error: "You don't have permission to delete this meetup.",
       });
 
-    if (isBefore(meetup.date, new Date()))
+    if (meetup.past)
       return res.status(401).json({
         error: 'You can only delete meetups that have not yet happened.',
       });
