@@ -38,7 +38,7 @@ class MeetupController {
           include: [
             {
               model: File,
-              as: 'avatar',
+              as: 'file',
               attributes: ['id', 'path', 'url'],
             },
           ],
@@ -53,8 +53,8 @@ class MeetupController {
       title: Yup.string().required(),
       description: Yup.string().required(),
       location: Yup.string().required(),
-      banner_id: Yup.integer().required(),
-      user_id: Yup.integer().required(),
+      banner_id: Yup.string().required(),
+      user_id: Yup.string().required(),
       date: Yup.date().required(),
     });
 
@@ -62,7 +62,8 @@ class MeetupController {
       return res.status(400).json({ message: 'Validation fails.' });
 
     const { date } = req.body;
-    const hourStart = startOfHour(parseISO(date));
+
+    const hourStart = startOfHour(date);
 
     if (isBefore(hourStart, new Date()))
       return res.status(400).json({ error: 'Past dates are not permitted.' });
@@ -74,13 +75,15 @@ class MeetupController {
     if (checkAvibility)
       return res.status(400).json({ error: 'Meetup date is not available.' });
 
-    const { title, description, location } = req.body;
+    const { title, description, location, banner_id, user_id } = req.body;
 
     const meetup = await Meetup.create({
       title,
       description,
       location,
       date,
+      banner_id,
+      user_id,
     });
 
     return res.json(meetup);
