@@ -27,7 +27,7 @@ class MeetupController {
     const meetups = await Meetup.findAll({
       whereClause,
       order: ['date'],
-      attributes: ['id', 'date', 'past'],
+      attributes: ['id', 'title', 'description', 'location', 'date', 'past'],
       limit: 10,
       offset: (page - 1) * 10,
       include: [
@@ -38,10 +38,15 @@ class MeetupController {
           include: [
             {
               model: File,
-              as: 'file',
+              as: 'avatar',
               attributes: ['id', 'path', 'url'],
             },
           ],
+        },
+        {
+          model: File,
+          as: 'file',
+          attributes: ['id', 'path', 'url'],
         },
       ],
     });
@@ -53,8 +58,8 @@ class MeetupController {
       title: Yup.string().required(),
       description: Yup.string().required(),
       location: Yup.string().required(),
-      banner_id: Yup.string().required(),
-      user_id: Yup.string().required(),
+      banner_id: Yup.number().required(),
+      user_id: Yup.number().required(),
       date: Yup.date().required(),
     });
 
@@ -63,13 +68,11 @@ class MeetupController {
 
     const { date } = req.body;
 
-    const hourStart = startOfHour(date);
-
-    if (isBefore(hourStart, new Date()))
+    if (isBefore(date, new Date()))
       return res.status(400).json({ error: 'Past dates are not permitted.' });
 
     const checkAvibility = await Meetup.findOne({
-      where: { user_id: req.userId, date: hourStart },
+      where: { user_id: req.userId, date },
     });
 
     if (checkAvibility)
@@ -94,8 +97,8 @@ class MeetupController {
       title: Yup.string(),
       description: Yup.string(),
       location: Yup.string(),
-      banner_id: Yup.integer(),
-      user_id: Yup.integer(),
+      banner_id: Yup.number(),
+      user_id: Yup.number(),
       date: Yup.date(),
     });
 
@@ -116,11 +119,11 @@ class MeetupController {
         error: 'You can only edit meetups that have not yet happened.',
       });
 
-    if (isBefore(parseISO(req.body.date), new Date())) {
-      return res.status(400).json({ error: 'Meetup date invalid' });
+    if (isBefore(req.body.date, new Date())) {
+      return res.status(400).json({ error: 'Past dates are not permitted.' });
     }
 
-    const meetup = await Meetup.update(req.body);
+    const meetup = await exitMeetup.update(req.body);
 
     return res.json(meetup);
   }
@@ -140,7 +143,7 @@ class MeetupController {
         error: 'You can only delete meetups that have not yet happened.',
       });
 
-    await meetup.delete();
+    await meetup.destroy();
     return res.json(meetup);
   }
 }

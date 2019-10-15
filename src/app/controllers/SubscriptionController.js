@@ -35,7 +35,7 @@ class SubscriptionController {
 
   async store(req, res) {
     const schema = Yup.object().shape({
-      meetupId: Yup.integer().required(),
+      meetupId: Yup.number().required(),
     });
 
     if (!(await schema.isValid(req.body)))
